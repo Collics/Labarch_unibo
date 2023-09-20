@@ -1,0 +1,631 @@
+Le immagini su block notes o tablet
+
+
+MICROCONTROLLER SYSTEM ARCHITECTURE/ E MEMORIE
+Ogni microcontrollore è caratterizzato da :
+microprocessore
+Memorie: Ram o Flash
+Periferiche: DMA, TIMER, INTERFACCE digitali o analogiche
+Bus: AHB, APB
+
+
+Tutte le periferiche, interfacce e memorie sono mappate come se fossero indirizzi di memoria, quindi accederanno tramite uso di Load e Store. I bit che possiamo emettere definiscono uno spazio, abbiamo quindi nel nostro microcontrollore 2^32 indirizzi.
+In questo tipo di architetture abbiamo molte memorie, ma il sistema è fatto per nasconderne la gran parte. Tra queste abbiamo:
+
+Main memory (SRAM)-> essa è una memoria statica ad accesso casuale, cioè si può accedere con due indirizzi consecutivi non correlati tra di loro, l'accesso è dunque non necessariamente consequenziale. Nella SRAM mettiamo la maggior parte dei nostri dati e del nostro codice, è connessa tramite bus AHB ed accessibile tramite DMA.
+
+Closely/Tightly Coupled Memory -> è una memoria più piccola, accessibile senza latenza perchè non c'è un interconnect quindi è direttamente accessibile dal core. L'accesso seppure veloce non garantisce il trasferimento di dati mediante DMA
+
+Embedded Flash Memory -> è una memoria non volatile cioè i dati rimangono fissi. Quindi è una memoria adatta all'utilizzo per lo storage. Questo tipo di memoria hanno una forta asimmetria tra le operazioni di lettura e di scrittura. 
+
+State Retentive Backup Data -> basata su SRAM ed è mantenuta attiva anche quando il microcontroller è spento. Lo scopo di mantenerla attiva è di fornire i dati necessari al ripristino del microcontrollore dopo essere entrati in uno stato di deep sleep. 
+
+External memories-> memoria esterna utilizzata per estendere le capacità del microcontrollore. E' una memoria dinamica ancora ad accesso casuale quindi non sequenziale
+
+
+Ora vediamo com'è fatta una memoria, guardando prima le architetture delle memorie:
+Una memoria dal punto di vista concettuale somiglia ad un rettangolo costituito da N indirizzi e 2^M BIT di dato.
+Solitamente spezzeremo questo array per creare strutture più quadrate con vari fattori di forma(se noi guardassimo alle dimensioni logiche avremo che una delle due è dell'ordine di migliaia di elementi e 8 bit di larghezza, struttura complicata da realizzare sul silicio).
+Ciascuna cella deve contenere un bit.
+Quindi la nostra memoria è una griglia di elementi di memoria che deve conservare un singolo bit 0/1.
+Accanto al nostro array di memoria abbiamo bisogno di un elemento che ci permette di selezionare quale elemento vogliamo accedere -> decoder di riga, prende n bit di input e ne spara fuori 2^n mettendo a 1 il filo che ha indice pari al numero binario dato in input.
+Abbiamo poi una serie di fili che partono dal decoder di riga chiamati wordline, utilizzati per selezionare la parola. Nell'altra direzione abbiamo una serie di linee che raccolgono l'informazione all'interno delle celle di memoria-> bit line, ciascuna colleziona un bit che va decodificato in qualche misura
+Inoltre tipicamente dovremmo avere un decoder di colonna che sarà un mux/ demux
+E abbiamo bisogno di un Meccanismo fisico per estrarre le informazioni
+
+
+
+Quindi i componenti principali della memoria sono :
+ARRAY: dove sono presenti gli elementi di memoria
+Decoder di riga: decoder di indirizzo, ci può essere solo un output alto alla volta
+Decoder di colonna: implementato tramite mux e demux, usato per la lettura, seleziona uno tra gli N input per connettersi all'output. Il demux è usato per la scrittura.
+Segnali di controllo: Output enable, chip select e write enable che permettono di gestire la memoria
+
+
+
+RAM STATICA (SRAM)
+CELLA 6T, circuito più importante per la memorizzazione di informazione volatile on-chip.
+
+E' un dispositivo che si basa sul concetto di bistabile, cioè 2 CMOS in retroazione diretta. L'input di un invertitore è in retroazione con l'output del precedente e viceversa. Sono presenti quindi due stati possibili stabili e uno stato possibile non stabile. Una piccola perturbazione porterà lo stato instabile a decadere in uno dei due stati stabili.  I due stati stabili possono essere 10 oppure 01, lo stato non stabile è quello in cui il nodo è esattamente al 50% della VDD. E' uno stato valido ma è instabile perchè una qualsiasi perturbazione lo porterà da un estremo all'altro.
+Possiede due bitline, una delle due sarà negata. Ci sono due punti simmetrici dove estraiamo l'informazione ( Q e Qn).
+Quando la WL non è attiva, m5 e m6 sono spenti e il bistabile rimane nella sua condizione attuale ( il bistabile sarà sicuramente in una delle sue due condizioni). Possiamo allora forzare il valore della BL per forzare una delle due configurazioni che vogliamo oppure porre esattamente a metà il valore della WL e quindi la BL assumerà il valore preferito dal bistabile. Entrambe queste operazioni possono essere usate in maniera simmetrica rispetto ai tempi, i tempi di lettura e scrittura non sono significamente diversi.
+
+
+OPERAZIONE DI SCRITTURA
+Le bitline devono avere un valore, poichè stiamo facendo una scrittura quindi dobbiamo imporre una configurazione. Assumiamo di voler scrivere 10
+BLN 1
+BL 0 
+Questo significherà che facciamo si che le nostre bitline assumano con un driver che viene da fuori un valore e poi andiamo ad accendere la  WL che va a selezionare il bit. Quando accendiamo la WL se il valore che era dentro la cella è già lo stesso non succede nulla, se è diverso nel momento in cui la WL si accende i due valori dei nodi Q E QN si invertono perchè abbiamo un driver elettricamente più forte rispetto a quelli della cella che sta guidando le bitline e quindi andiamo a invertire forzosamente la configurazione.
+
+OPERAZIONE DI LETTURA
+Nella lettura facciamo l'inverso ma è più complessa dal punto di vista elettrico.
+Dobbiamo innazitutto precaricare al 50% le bitline portandoci nello stato intermedio e poi le lasceremo flottanti perchè se continuiamo a precaricarle forziamo la cella ad assumere un valore intermedio.
+
+Nella seconda metà del ciclo di accesso le BL non sono più forzate esternamente ma sono guidate mediante i transistor di accesso. Una delle due convergerà a 0 seguendo il valore del nodo e l'altra al valore logico 1. In questo tipo di memorie attacchiamo un sense amplifier che va a guardare la differenza di potenziale tra bitline n e bitline,  e tramite questa va a determinare il valore memorizzato nella cella.
+
+Cosa significa che è statica? Se non la tocco ma la mantengo alimentata il valore è memorizzato in maniera permanente, viene perso solamente quando sottraggo l'alimentazione. Un difetto di questa memoria è che ciascuna celle deve avere 6T e 2 BL, quindi l'alternativa per aumentare la capacità di memoria è utilizzare quella dinamica. Nella dinamica si memorizza l'informazione come carica elettrica all'interno di un condensatore che avrà una resistenza parassita e quindi perderà parte della carica in un lento transitorio verso lo scaricamento. (problema di leakage)
+
+
+MEMORIA DINAMICA (DRAM)
+
+Richiedono solo 1 transistor e solo 1 capacità per ogni cella di memoria, questo implica una densità elevata e un costo minore rispetto alla SRAM (DOBBIAMO REFRESHARE LA MEMORIA CONTINUAMENTE). Per quanto riguarda le operazioni di lettura e scrittura esse risultano molto simili alla SRAM, infatti è presente una bitline con capacità alta e una word line collegata al transistor di accesso alla cella e abbiamo la capacità su cui è memorizzato il valore.
+(La dram non è simmetrica)
+Quando la WL è accesa abbiamo un collegamento elettrico tra la bitline e il condensatore, quando la  WL è spenta abbiamo il nostro condensatore come se fosse connesso e lentamente perde il suo valore a causa delle correnti parassite.
+In write: Cs è caricato o scaricato tramite il comando della WL e la BL
+In read : la ridistribuzione di carica avviene tra la bit line e la capacità i store (Cs<<Cbl)
+La lettura è distruttiva, siccome la memoria è di tipo dinamico la presenza di un dato dipende dalla presenza o meno di cariche dentro la capacità della nostra cella, quando effettuo la lettura le cariche se ne vanno dalla capacità, perdendo il contenuto della memoria. Questo significa che ogni volta che leggo devo anche scrivere sulla cella (Con conseguente dispendio di energia).
+
+(EFFETTUO LA LETTURA -> porto i dati al processore con i bus -> meccanismo all'interno della DRAM riscrive il dato letto)
+
+Inoltre all'interno delle celle di memoria è presente una corrente di leakage (corrente costante piccola che nel tempo scarica la capacità), per questo motivo vengono posti dei circuiti di refresh che effettuano una riscrittura di tutta la memoria in modo periodico.
+
+
+PASSIAMO ALLE MEMORIE NON VOLATILI -> memorie che mantengono il contenuto
+
+MASK ROM
+Memoria non volatile più semplice, il suo vantaggio è costituito nella programmazione durante la fabbricazione e non può essere modificata una volta programmata.
+
+Abbiamo un dec 3:8, delle BL e delle WL.
+Leggiamo il contenuto della memoria selezionata dalla WL e consideriamo gli incroci e a seconda di quello che abbiamo nell'incrocio il contenuto della cella di memoria viene riversato sulla BL dove potrà essere letto. 
+Il meccanismo utilizzato per immagazinare informazione è la presenza oppure assenza di un diodo. La bitline è connessa al carico con una resistenza connessa a massa per cui non c'è niente a tenerla carica, la tensione tenderà a 0 e dunque il valore logico estratto sarà zero (cella senza diodo)
+
+Negli incroci con il diodo (cc in una sola direzione) avremo che  possiamo immaginare che la BL E LA WL siano cortocircuitate. Essendo cortocircuitate il valore logico di 1 si propaga attraverso la BL e quindi malgrado abbiamo una resistenza a carico avremo 1. Questo tipo di memoria è utile perchè ci sono alcune applicazioni dove dobbiamo immagazzinare all'interno dei nostri dispositivi e nello specifico nei nostri microcontrollori che non vogliamo cambiare mai (ad esempio degli identificativi).
+
+
+
+NOR ROM
+Solitamente si utilizzano di più le architetture ROM a transistor.
+Abbiamo ancora una volta delle WL e delle BL. Abbiamo dei dispositivi di PU sempre attivi quando utilizziamo la ROM. Definiamo gli incroci utilizzando dei Transistor connessi in modo particolare. Avremo in particolare che le WL sono collegate ai gate dei transistor mentre Source e Drain sono collegati rispettivamente a delle linee metalliche di GND e alle BitLine. Un terminale è connesso alla bitline e l'altro a massa. Quando non abbiamo un collegamento allora la BL è sottoposta al PU-Transistor e quindi il suo valore di base è 1. Quando invece è presente il transistor una WL a 1 fa si che ci sia una rete di PD verso GND e quindi il valore logico all'incrocio sarà 0.
+Quindi il valore logico di 1 è immagazzinato come assenza di T quindi ca
+Mentre 0 come presenza di T.
+(la presenza di un transistor crea un path conduttivo tra la bit line e linea di massa altrimenti non presente)
+
+NAND ROM
+
+Sono il duale della precedente, non abbiamo linee di GND in orizzontale ma in verticale. E' come se i Transistor fossero in parallelo verso massa.
+(Nor nmos // e pmos serie Nand nmos serie e pmos //)
+
+Per attivare una WL dobbiamo selezionarla spegnendo il suo transistor. (di default la word line è in stato alto ad eccezione della linea selezionata)
+Se non ci sono transistori attivi nella word selezionata allora la bit line è portata verso il basso.
+Se è presente un transistore la bitline e portata verso l'alto.
+Un 1 logico è immagazzinato in presenza di un transistor attivo, mentre uno 0 logico è immagazzinato come assenza di un transistor attivo all'incrocio
+
+FAMOS
+Si basano su un transistor che oltre a gate, source e drain ha un ulteriore contatto detto floating gate (perchè appunto flottante). In questi transistor si ha uno spessore dell'ossido considerevole, questa cosa porta delle conseguenze sulle modalità con cui tali memorie possono essere programmate e cancellate. Questa tipologia di transistori è alla base di tutte le memorie non volatili.
+
+Il canale è popolato da cariche negative. Applicando delle tensioni piuttosto elevate al morsetto di gate e di drain è possibile consentire alle cariche negative del canale di saltare nel contatto flottante attraversando il dielettrico (Avalanche injection). Quando un transistore non è programmato vuol dire che all'interno del gate flottante non sono presenti cariche negative, una volta programmato tali cariche risultano intrappolate all'interno del floating gate. (Con l'avalanche injection forziamo alcuni elettroni a trasferirsi all'interno del gate flottante).
+
+Nella seconda e terza fase fintanto che non vengono raggiunti valori significativi di tensione il gate rimane caricato negativamente e quindi il transistore risulta essere spento. Avere un transistore spento vuol dire non avere la possibilità di modificarlo. Se invece nella fase di injection avessimo applicato una tensione minore avremmo avuto la possibilità di modificare successivamente lo stato del transistore.
+
+LE MEMORIE EPROM SONO BASATE SU QUESTO CONCETTO, dopo la fabbricazione è possibile cancellare e programmare la memoria solamente attraverso dei forni appositi che fanno uso di radiazioni ultravioletti. Il problema di questa soluzione è che devo togliere il sistema embedded dalla sua attuale collocazione, riprogrammarlo per poi reinserirlo nell'applicazione.
+
+
+Una evoluzione del FAMOS è il 
+
+FLOTOX
+Il flotox ha uno strato di ossido molto più sottile di quello precedente. Ha la capacità di poter essere cancellato elettricamente senza uso di radiazioni. Quindi è sufficiente cancellare la memoria con un apposito codice via software senza dover rimuovere il controllore. Questo tipo di transistore è tipico delle memorie EEPROM.
+(si basa sul tunneling, una pallina o elettrone che sia all'interno di una buca ha una probabilità non 0 di essere trovata al di là del muro. Questo perchè la proprietà ondulatoria dell'elettrone si configura nel suo essere rappresentato da una funzione d'onda e la barriera attenua l'energia dell'onda non annullandola, quindi è possibile che la funzione d'onda si propaghi aldilà della barriera)
+Si scarica il floating gate in maniera controllata ed elettrica, si fabbricano quindi dei transistor dove almeno una parte del floating gate ha un ossido molto sottile grazie alla quale il tunneling ha una probabilità molto elevata. Quindi applicando un campo magnetico molto forte otteniamo un fenomeno di conduzione. Questo tipo di transistore è tipico delle memorie EEPROM, però c'è un problema legato al controllo della soglia, infatti, l'eliminazione degli elettroni nel gate flottante non è mai completa, e questo porta a modificare la tensione di soglia del transistore. Ne risulta che la memoria avrà un comportamento non predicibile dal punto di vista dei timing.
+
+FG  BEHAVIOUR AFTER PROGRAMMING
+Questi due meccanismi ci permettono di ottenere tre stati finali.
+
+Nel primo tramite il tunneling carichiamo positivamente, ovvero estraiamo elettroni dal nostro floating gate. Se lo carichiamo positivamente questo fa il contrario del famos. Ha il gate sempre a 1 e quindi transistor sempre conduttivo. Quindi trasformiamo il nostro transistor in un Cortocircuito sia che ci sia uno sia che ci sia zero.
+
+Injection a valanga invece va al contrario, carichiamo negativamente il floating gate, questo fa da schermo rispetto a ciò che succede sul terminale di gate quindi se abbiamo un uno o uno 0 il transistor è sempre visto come un aperto. 
+
+Infine possiamo prendere un transistor caricato negativamente in questo modo e neutralizzarlo, caricandolo positivamente quanto basta per avere un gate neutro e quindi tornare allo stato di funzionamento regolare. Se abbiamo 1 conduce altrimenti con 0 nel gate non si conduce.
+
+EEPROM 
+Le eeprom sono quindi le cancellabili elettricamente e sono sostanzialmente uguali alle rom di prima ma per motivi di stabilità elettrica ci sono 2T a differenza di un unico T dei floating gate. Sono presenti un FG e uno nella WL perchè ha una varianza importante nella regolazione di soglia del transistor. Il primo transistor serve a memorizzare il dato e il secondo a garantire la predicibilità degli accessi dal punto di vista dei timing.(DISUSO PERCHE' 2T PER OGNI CELLA SONO TANTI)
+
+MEMORIE FLASH
+
+Le memorie flash combinano i vantaggi delle EPROM  e delle EEPROM, sono cancellabili elettricamente e hanno un transistor per cella quindi sono più dense.
+Utilizzano entrambi i meccanismi di tunneling per la cancellazione e avalanche injection per la scrittura.
+Tipicamente hanno un cambiamento di stato che può essere da 0->1 cancellazione fatto per interi settori alla volta anzichè una cella alla volta. Oltre un certo numero di utilizzi le flash si degradano a causa dei molti cicli di cancellazione e scrittura.
+
+La lettura avviene come nelle ROM standard e la scrittura avviene cambiando stato da 1->0 aumentando la soglia del transistor
+
+NOR FLASH
+LETTURA
+Le linee di source sono connesse a GND, si precaricano le BITLINE ad un dato voltaggio VD con un transistor di PU. Si setta ad 1 la WL desiderata e si tengono le altre a 0. Infine si leggono le BL mediante utilizzo di un sense amplifier.
+
+SCRITTURA
+Connettiamo le linee di source al ground e mettiamo BL,WL ad una tensione di programmazione alta. Per condizione a valanga il nostro gate si trasformerà in un circuito aperto e sarà come se avessimo un transistor a 0 (ca)
+
+CANCELLARE
+La cancellazione non può essere fatta singolarmente ma per blocchi o segmenti di transistor. Per effettuare la cancellazione del transistor devo portare il suo source ad un livello di tensione elevato mentre gate e drain a 0V.
+Dunque applichiamo 20V sulle source line, 0V sulle WL E BL. Essendo i transistor connessi in blocco ad una stessa Source line, la cancellazione interesserà necessariamente l'intero blocco.
+
+NAND FLASH
+-Tipicamente più piccole delle memorie di tipo NOR ( 40% più piccole), dovuto al fatto che non ho 
+le linee di ground che passano immezzo ai transistor.
+-Utilizzano l’effetto tunnel sia per la lettura che per la scrittura (L’effetto tunnel è meno distruttivo 
+dell’Hot carrier injection), il numero di cicli di cancellazione e scrittura è più grande rispetto alle
+flash di tipo NOR.
+-Sono più veloci da scrivere e cancellare perché utilizzano l’effetto tunnel.
+-Sono più lente in lettura perchè per leggere le memorie di tipo NAND devo attraversare più 
+transistor in parallelo (resistenza equivalente maggiore).
+-Non adatte per memorizzare il codice, sono più adatte per applicazioni che non richiedono accessi 
+random alla memoria bensì accessi sequenziali.
+
+LETTURA
+Dal punto di vista della struttura sono simili alle ROM di tipo NAND.
+Le WL sono invertite, la WL selezionata va a 0 mentre tutte le altre ad 1.
+Abbiamo una linea aggiuntiva di Transistor che non deve essere per forza di FG.
+Leggiamo quindi i valori delle BL.
+
+
+SCRITTURA
+Connettiamo la linea di source a massa, quindi spegniamo tutte le serie dunque tutti i transistor saranno flottanti ( non può passare corrente attraverso i nostri transistor), selezioniamo una WL dove scrivere ad alta tensione e poi poniamo tensioni basse sulle BL dove vogliamo scrivere 1 e tensioni alte sulle BL del transistor in cui vogliamo scrivere uno 0
+
+ERASE
+La bit line e la source line devono essere a tensione elevata. La word line è a ground ( otteniamo una tensione di soglia negativa che svuota le celle) e la cancellazione avviene tramite effetto tunnel. Avviene più velocemente delle FLASH NOR perchè applichiamo 20V sia al source che al drain dei transistor.
+
+
+
+
+
+
+
+ACQUISIZIONE DEL SEGNALE NEI MICROCONTROLLORI
+
+L'input è dato dalla grandezza che si vuole misurare dopodichè il sensore trasforma la grandezza in ingresso in un segnale elettrico di tipo analogico. Si entra allora nella elettronica di condizionamento che consente di interfacciare il segnale fornito dal sensore con il microcontrollore. Segue allora il processo di conversione analogico-digitale per avere in uscita il segnale digitale pronto per l'elaborazione.
+
+Il condizionamento oltre a modificare l'ampiezza del segnale in termini di tensione, può essere equipaggiato con un filtro. Il segnale viene poi amplificato se l'applicazione lo richiede oppure attenuato. In altri casi viene fatto un adattamento di impedenza.
+
+CONVERTITORE ADC:
+Il convertitore ha di solito un circuito volto al Sample and Hold che si preoccupa di campionare il segnale mantenendolo costante per un certo tempo ad ogni campionamento, esso facilita la successiva conversione in digitale. La sua frequenza di campionamento deve essere maggiore della frequenza dei segnali che voglio analizzare per evitare perdita di informazioni.
+
+Abbiamo due diverse tipologie di segnali : 
+Analogico -> segnale continuo nel tempo e nello spazio
+Digitale -> consiste in solo due stati secondo quanto richiesto dai calcolatori
+
+
+Un ADC è un circuito integrato molto usato nell'ambito dei sistemi embedded, che consente un dialogo fra il mondo reale e il mondo di elaborazione dell'informazione (digitale). Ogni informazione che viene prelevata dal mondo esterno è di tipo analogico. Il segnale analogico viene prima discretizzato dal punto di vista temporale e poi  dal punto di vista dei valori che il segnale può assumere
+Abbiamo quindi diversi passaggi: SAMPLE AND HOLD -> QUANTIZZAZIONE -> CODIFICA
+
+Misuriamo il segnale analogico ad intervalli uniformi effettuando il campionamento, la cui frequenza per il teorema del campionamento deve essere maggiore o uguale di 2B (la banda del segnale da convertire). Il circuito di sample and hold tiene stabile il segnale per tutto il tempo necessario al processore per operare l'operazione di conversione. Il segnale una volta discretizzato potrà assumere solo certi valori.
+Ovviamente questo introdurrà un piccolo errore legato alla quantizzazione.
+
+Per effettuare il processo di sampling and hold si usa un transistor collegato ad una capacità. Il transistor viene acceso e la capacità si riempie. Dopodichè il transistor viene spento. La capacità mantiene per un certo quantitativo di tempo il valore di tensione campionato (HOLD)
+
+Dopo aver effettuato il Sample and Hold, il valore del segnale è ancora analogico. Dobbiamo ora quantizzarlo. Per quantizzare il segnale devo decidere il numero di bit del mio ADC. Il numero di livelli a cui posso quantizzare il segnale dipende dal numero di bit a disposizione secondo la formula seguente:
+Numero livelli= 2^numero di bit
+
+Una volta effettuata la quantizzazione, devo effettuare la codifica, ossia assegnare dei valori digitali ad ogni livello.
+
+AD esempio con 2 bit di codifica possiamo implementare 4 livelli, quindi il segnale analogico può essere codificato in 4 valori: 00,01,10,11. Quello che si fa è approssimare in maniera migliore il segnale d'ingresso con il segnale digitale. Per migliorare l'approssimazione del segnale analogico prendiamo un numero maggiore di bit, aumentando la risoluzione. Se applichiamo 3 bit di codifica l'approssimazione risulta più accurata.
+
+Abbiamo due maniere per migliorare il processo di conversione analogico-digitale:
+
+Aumentare la frequenza di campionamento del convertitore
+Aumentare la risoluzione, aumentando il numero di bit utilizzati
+
+Nel dominio dei valori, non siamo mai in grado di rappresentare i valori in maniera esatta. Tanto più la risoluzione è fine tanto più il segnale è ricostruito in maniera accurata.
+
+POSSIBILI ERRORI:ALIASING (SAMPLING) -> Avviene quando il segnale di input sta cambiando più velocemente del rate di sampling
+ERRORE DI QUANTIZZAZIONE(RESOLUTION)
+
+
+TIPI DI ADC
+• Flash 
+• Ad approssimazioni successive
+• Dual slope
+• Delta sigma
+
+
+Partiamo dal 
+FLASH ADC (a.k.a. Parallel ADC)
+
+Il convertitore flash si basa sull'idea che noi prendiamo direttamente la definizione di ADC e la applichiamo utilizzando usando una rete partitiva di resistori accoppiata con dei comparatori.
+
+L'idea è che se noi abbiamo due resistenze, assumendo che abbiano lo stesso valore R, sappiamo che in mezzo avremo 0.5*Vd
+
+Abbiamo:
+• Una tensione di riferimento (V*) che è la tensione massima che può essere assunta 
+dall’analog input (ovvero può assumere valori tra 0V e V*).
+• Un partitore resistivo costituito da n-1 resistenze e transistori dove n è il numero di bit 
+• Le tensioni sui nodi che sono collegati agli input meno dei comparatori sono le uscite del partitore resistivo, in un nodo N tra le resistenze avremo la seguente equazione (V*/n)*m (dove m sta per il numero di resistori tra il nodo che stiamo guardando e il GND e n.)
+Quando abbiamo un ingresso che è associato ad una certa tensione avremo l’ingresso dei comparatori che sono collegati con il nodo meno all’uscita del partitore resistivo e con il nodo più saranno collegati alla tensione di ingresso analogica.
+
+Se il valore dell’input analogico è minore della formula, l'output di questo convertitore sarà zero
+
+Se il valore dell’input analogico è maggiore della formula, l'output di questo convertitore sarà uno
+
+UN COMPARATORE A NODO DI GROUND non è necesario perchè esso dovrebbe avre un GND diverso. Se N è il numero di bit di output allora necessitiamo di 2^N-1 comparatori.
+Il pregio di questo comparatore è la sua velocità e la semplicità, però il numero di resistenze necessarie scala con il numero di livelli, quindi se aggiungiamo un bit raddoppiamo le resistenze, inoltre tutte queste resistenze devono essere identiche.
+
+Il nostro ADC ha bisogno oltre che di questo tipo di accorgimenti di un livello aggiuntivo per tradurre l'output dei comparatori in un numero binario cioè il priority encoder, esso va a vedere nell'input qual è l'1 più significativo e codifica di conseguenza l'output. Quando nessuno dei comparatori dà 1 allora abbiamo lo 0.
+
+
+CONVERTITORE AD APPROSSIMAZIONI SUCCESSIVE (SAR)
+E' un convertitore composto da vari blocchi di logica analogica e logica digitale:
+
+• SAR: registro ad approssimazioni successive, elemento digitale con il proprio clock di funzionamento che dipenderà dalla velocità di conversione che vogliamo 
+implementare, contiene il valore di uscita del comparatore che viene aggiornato ad ogni step del processo di conversione, il compito di questo registro è quello di 
+implementare il segnale di controllo di questo ADC, lo può fare grazie a della logica combinatoria aggiuntiva. ( il sar è aggiornato tramite una ricerca binaria per avere il valore Vcomp il più vicino possibile a Vin)
+
+• Convertitore DAC: Il DAC genera una tensione (Vcomp) che cerca di approssimare il valore samplato di tensione di input
+
+• Circuito S&H: costituito da uno switch e una capacità, il compito di questo componente è quello di effettuare il sampling della tensione d’ingresso e immagazzinare la carica di una capacità per tutto il tempo necessario per effettuare la conversione AD.
+• Tensione d’ingresso (al circuito di S&H): valore di cui vogliamo effettuare la conversione.
+• Comparatore: collegato con il nodo meno al S&H e con il nodo + alla tensione di uscita del DAC.
+• Clock sincrono
+
+ALGORITMO CHE CI FA EFFETTUARE LA CONVERSIONE AD
+Utilizza un DAC a n-bit e genera un segnale analogico, il comparatore effettua un confronto binario tra la Vdac e la Vin:
+o Se Vin < Vdac, l’out del comparatore sarà 0
+o Se Vin > Vdac, l’out del comparatore sarà 1
+Il processo è il seguente:
+• Abbiamo all’interno del SAR una serie di bit e viene inizializzato a 1 il MSB del DAC, così facendo e tenendo a zero tutti gli altri bit del DAC avremo una Vdac d’uscita che sarà uguale alla tensione di riferimento (Vref) diviso 2.
+• Ora effettuiamo la conversione:
+o Se Vin < Vdac(=Vref/2) ovvero out del comparatore sarà 0, significa che il MSB in out dal SAR dovrà essere resettato a zero perché la mia tensione d’ingresso è 
+minore della metà della tensione di riferimento.
+o Se Vin > Vdac(=Vref/2) ovvero out del comparatore sarà 1 significa che il MSB dovrà essere settato a 1.
+Ripeto questo confronto per ogni bit scorrendo tutti i bit del SAR avremo il codice equivalente alla conversione AD del convertitore.
+
+CONVERTITORE A DOPPIA RAMPA O CONVERTITORE INTEGRATORE
+La parte di circuito costituita dall'opamp con il condensatore sul ramo di retroazione detto integratore.
+
+La caratteristica del circuito integratore è quella di conferire in uscita una rampa di tensione la cui inclinazione è proporzionale alla tensione di ingresso. 
+
+All'ingresso del circuito integratore è presente uno switch che permette di commutare tra una tensione di ingresso Vin(da convertire) e la tensione Vref nota a priori. 
+Alimentando dunque il circuito integratore con Vref genereremo in uscita una rampa di pendenza nota.
+L'uscita dell'integratore è mandata in ingresso ad un comparatore con morsetto negativo a massa, perciò l'uscita del comparatore permetterà di capire se la rampa è maggiore o minore di zero
+
+L'uscita del comparatore viene elaborata da una logica di controllo che pilota un contatore. Il compito del contatore è quello di contare il numero di cicli impiegati da un evento che osserveremo
+
+Inizialmente lo switch controllato dalla logica di controllo porta in ingresso all'integratore Vin, assumiamo che Vin sia una tensione positiva.
+Contemporaneamente è avviato (sempre dalla logica di controllo) il conteggio del contatore.
+Si fa contare il contatore per un tempo di cicli noto (Tu)
+In questa prima fase si ha Tu come variabile nota e Vin come incognita, la pendenza della rampa in uscita all'integratore non è nota
+
+Nella seconda fase lo switch viene spostato su Vref, Vref ha una polarità opposta alla Vin, in questo caso dunque assumiamo che sia negativa
+In uscita al circuito integratore sarà generata una rampa di pendenza nota (proporzionale a Vref).
+Il circuito di controllo pilota il contatore in modo tale che questo conti i cicli Td impiegati alla tensione di uscita del circuito integratore per arrivare a 0.
+L'uscita del comparatore è 1 fintanto che la tensione al suo ingresso è maggiore di zero, sarà 0 quando la tensione al suo ingresso sarà nulla. In questo modo è pilotata la logica di controllo. Terminata la seconda fase sarà possibile calcolare l'incognita Vin sfruttando i dati noti Vref, Tu, Td come nella formula.
+
+Il calcolo della tensione di ingresso viene realizzato in maniera digitale dalla logica di controllo. La risoluzione della conversione può essere aumentata allungando i tempi di integrazione, ciò è dovuto dal fatto che il calcolo della Vin sia effettuato in funzione dei tempi Tu e Td, più saranno lunghi più preciso sarà il valore di Vin.
+
+In generale questo convertitore non è veloce e richiede tempo a caricare e scaricare il circuito integratore. C'è possibilità di agire direttamente su parametri per modificare il trade off tra velocità di conversione e risoluzione.
+
+(FUNZIONAMENTO IN BREVE: Integriamo l'input e il tempo che ci mettiamo a integrarlo fino alla soglia nota è quello che ci vuole per giungere al nostro comparatore e dire che è il momento di iniziare a switchare tra Vin e Vref, quando l'integratore raggiunge un certo livello il suo input viene switchato e comincia a integrare nella direzione opposta. Quando torna a 0 va nel verso opposto. Abbiamo quindi alla fine dei segnali a dente di sega in cui gli slope corrispondono a valori diversi che andiamo a misurare tramite la durata. E' potenzialmente preciso ma non ha tutti i vantaggi del Convertitore Delta-Sigma)
+
+CONVERTITORE DELTA-SIGMA
+
+Funziona sulla base di un principio molto simile, ma anzichè convertire direttamente la tensione analogica in input in un tempo arrotondato digitalmente, lo converte in una frequenza di impulsi che possono essere a loro volta contati.
+
+Il delta sigma campiona un bit analogico, ha un blocco chiamato delta sigma modulator che effettua una funzione simile al dual slope con un generatore di impulso aggiuntivo, e un filtro passa basso realizzato in digitale.
+
+All'integratore e al comparatore collegati ad un counter aggiungiamo in retroazione un generatore di impulsi e di fatto aggiungiamo la capacità di mediare i valori contati nel tempo in un periodo di tempo più lungo. Questo perchè nel delta sigma facciamo lavorare il circuito ad una frequenza 
+fc(di sovracampionamento)>>fs(frequenza di campionamento di nyquist)
+
+Quando una soglia viene rilevata il nostro generatore di impulsi genera un impulso di durata nota e di tensione nota. Il tempo noto verrà sottratto dall'input, ad essere integrato è l'input-impulso (Vin-Vpulse). Avremo quindi l'integrazione dell'impulso a durata fissa ma con slope non noto perchè dipende da (Vin-Vpulse).
+Successivamente l'impulso termina e lasciamo che l'integratore arrivi a 0, quando a 0 vede la soglia, si genera un nuovo impulso e si torna alla condizione iniziale. Se l'input è più alto del doppio avremo il doppio dei superamenti di soglia. Contando gli impulsi siamo capaci di distinguere il valore del segnale di input
+
+Quando andiamo a realizzare questo circuito abbiamo alcune piccole modifiche.
+Prima di tutto abbiamo che la somma e l'integrazione sono realizzate dallo stesso circuito (Vin e Vref in // all'input dell'integratore)
+Abbiamo inoltre che il conteggio del tempo e la generazione degli impulsi avviene in maniera sincrona rispetto ad un clock e di conseguenza come generatore dell'impulso useremo un FF che ci dirà che in un certo periodo di clock stiamo emettendo un impulso mentre in un altro periodo no.
+
+
+SERIAL I/O Interfaces
+Andiamo a vedere come sono fatte le interfacce seriali, cioè i protocolli che vengono utilizzati.
+
+UART
+Queste interfacce vengono utilizzate per interfacciare il microcontrollore con altri dispositivi di calcolo.
+
+UART = ASINCRONO, non c'è un clock in comune ( ogni dispositivo ha il suo clock locale)
+
+Essendo asincrono non ha clock condiviso tra RX e Tx quindi devono accordarsi in altro modo sugli istanti temporali in cui si trasmettono i bit. In altri casi ci può essere un segnale di supporto (USART SINCRONO)
+
+La UART è il meccanismo di base che ci serve per interfacciare il microcontrollore con altri dispositivi ( esempio bus di trasmissione o altri processori)
+LA UART E' UNA SPECIFICA LOGICA CHE CI DICE QUALI BIT DOBBIAMO TRASFERIRE, sostanzialmente trasferiamo informazioni a bassa banda come testo o informazione simile al testo (esempio MODEM, BLUETOOTH).
+
+Possiamo pensare alla usart come una coppia di convertitori da parallelo a seriale e da seriale a parallelo. Nel caso base l'informazione sul carattere è codificata in ASCII ed ogni carattere corrisponde ad 8 bit. Nella uart possiamo pensarli immagazzinati in un registro in parallelo e che vengono serializzati, quindi ne scegliamo solo uno per ciclo trasferendoli sulla nostra linea un bit alla volta.
+All'input del nostro trasmettitore abbiamo 8 bit, che vengono convertiti da parallelo a seriale tramite un mux guidato da contatore e li trasferiamo sulla linea seriale un bit alla volta. Nel ricevitore non faremo altro che selezionare e associare secondo un altro contatore sicronizzato con quello che trasferisce i bit che arrivano e li immagazina in un altro bit che mantiene i bit in parallelo.
+
+La UART è altamente configurabile in termini di :
+parità
+data framing 
+direzionalità: simplex -> unico collegamento in un'unica direzione
+		full duplex -> entrambe le linee presenti e possono funzionare allo stesso tempo
+		half duplex -> entrambe presenti ma ne funziona solo una alla volta
+
+Siccome i clock non sono condivisi per far si che rimangano allineati dobbiamo indovinare quando inizia la comunicazione. 
+
+Per far si che ciò funzioni con uno zero, la soluzione è di aggiungere una informazione chiamata frame. Abbiamo uno START bit (una configurazione standard sempre riconoscibile come inizio= e terminiamo con il bit di STOP (un'altra configurazione nota e sempre riconoscibile). Questi bit di controllo risolvono il problema di aggancio al Clock.
+
+Nel protocollo UART esiste un overhead di comunicazione (start bit, parity bit, stop bit) che porta a differenziare il BAUD RATE e il BIT RATE.
+BAUD RATE-> Frequenza di trasmissione di dati considerando anche i bit di overhead. Nella UART, che trasmette bit in serie, un BAUD corrisponde a un BIT, ma ciò non vale per i protocolli di trasmissione in parallelo, dove un baud corrisponde a più bit.
+
+BIT RATE-> frequenza di trasmissione che considera solamente i bit del dato, escludendo i bit di overhead
+
+VEDIAMO QUINDI COME FUNZIONA IL TRASFERIMENTO CON UART
+
+Nello stato di idle, le linee di trasmissione hanno un livello logico alto. Il modo in cui indichiamo l'inizio della trasmissione è quindi quello di inserire uno start bit che porta la linea a basso.
+
+Abbiamo poi dopo il trasferimento di un simbolo (tra 5 e 9 bits trasmessi, solitamente 8), questa informazione non è codificata da protocollo, trasmettitore e ricevitore devono già sapere quanti bit aspettarsi, uno può essere dedicato alla parità. Un bit di parità è un bit utilizzato per identificare l'errore su un singolo bit. Ad un vettore di n bit ne aggiungiamo un n+1 che è la somma logica (XOR o XNOR) di tutti gli altri bit. Con queste funzioni logiche andiamo a contare se il numero di 1 nel vettore è pari oppure dispari.
+ La parità dispari ci dà un 1 quando il numero di 1 è dispari, la pari il contrario. Se uno qualsiasi dei bit cambia valore per qualsiasi motivo la parità cambia, quindi la parità a RX non corrisponde a quella prevista.
+(SINGLE ERROR DETECTION MA NON POSSIAMO CORREGGERLO E LA PRESENZA DI DUE ERRORI NON VIENE RILEVATA) (nel conteggio della parità è incluso il parity bit)
+
+Una volta trasmesso il bit di parità abbiamo un numero di stop bit, anch'esso configurabile (1 o 2 bit). Questi bit di stop servono a notificare al ricevitore che la trasmissione è finita. Finita una trasmissione posso effettuare una nuova trasmissione con un altro start bit e cosi via.
+
+
+HANDSHAKE
+Il protocollo UART permette anche di effettuare un handshaking tra il dispositivo trasmettitore e quello ricevitore per trsmettere in sequenza un numero maggiore di dati. 
+Abbiamo il segnale RTS(request to send)-> segnale dal MCU al dispositivo che significa che il MCU può ricevere nuovi dati
+CTS(clear to send) -> segnale dal dispositivo al microcontrollore che significa che il dispositivo può mandare nuovi dati.
+
+I segnali hanno un significato duale se visti da un altro punto di vista. Lo scambio avviene quando sia CTS che RTS sono attivi
+
+
+I2C
+
+Utilizzato per connettersi con ogni periferica esterna per esempio: EEPROM, sensori termici, clock realtime. E' usato anche come interfaccia di controllo per dispositivi di signal processing : processori audio, video decoder etc...
+
+Ci sono tre velocità supportate ma nessuna delle 3 raggiunge le velocità della UART. 
+E' pensato per la comunicazione di circuiti integrati, la massima comunicazione si aggira sui 3 metri. Può supportare la modalità multi-master, cioè comunica con un numero di dispositivi arbitrario funzionando quindi come un BUS.
+Ha uno schema di comunicazione HALF DUPLEX sincrono, cioè è gestito da un Clock e non si può comunicare in due direzioni allo stesso tempo.
+
+La comunicazione si basa su due linee, SCL per il clock e SDA per i dati. Essendoci 1 solo clock ovviamente i dati non possono viaggiare in due direzioni allo stesso tempo.
+Come fa a funzionare con molti dispositivi allo stesso tempo? E come fanno a sapere quando condurre o no?
+Nel protocollo c'è una protezione elettrica automatica data dal livello elettrico del protocollo che permette di far si che anche se due dispositivi tentano di iniziare la comunicazione in uno stesso tempo non si ha conflitto elettrico. Il conflitto elettrico è assente per costituzione.
+
+Si usa un circuito elettrico dove i due fili SDA E SCL sono entrambi collegati a VDD tramite delle resistenze di Pull Up ( la loro conduttanza è bassa, valore di resistenza molto alto). In questo modo quello che i dispositivi connessi vanno a fare non è mai quello di alzare il valore di una delle due linee, ma sempre quello di fare da rete di PD, quindi tirare il valore della linea verso GND tramite driver in configurazione overdrain (abbiamo il dato che vogliamo scrivere sul Gate del transistor e la linea seriale collegata al Drain mentre il source è a massa). In questo modo se vogliamo scrivere uno 0 accendiamo il transistor e la linea seriale si trova collegata a massa. Se un altro transistor fa la stessa cosa allo stesso tempo non creiamo un conflitto elettrico perchè entrambi collegati a massa.
+Se avessimo un driver tradizionale che può guidare la linea verso l'alto o il basso avremmo un conflitto elettrico perchè si creerebbe un cammino a bassa resistenza tra massa e alimentazione.
+
+L'ultima cosa importante da notare riguarda le transizioni fra i due stati: entrambe le transizioni sono soluzioni di semplici equazioni differenziali lineari del I ordine (circuito RC), quindi esponenziali: la transizione da 0 a 1 avrà una costante di tempo molto più lenta di quella da 1 a 0, a causa del fatto che la resistenza di pull-up è ordini di grandezza superiore a quella equivalente del transistor in open-drain, ed è in generale piuttosto lento. Questo è uno dei motivi di fondo per cui I2C è un protocollo più lento di SPI. 
+
+TRASMISSIONE CON I2C
+
+Durante la fase di IDLE entrambe le linee sono ad 1( a causa del PU), come nella UART abbiamo uno start bit. Lo start bit nell'I2C non funziona come nella UART, cominciamo a fare toggling del clock con una transizione speciale nella quale si utilizza uno start bit dato dalla transizione del segnale SDA da 1 a 0 mentre il segnale SCL è a 1.
+Ad eccezione dello start bit e stop bit una transizione SDA è possibile solo quando SCL è a 0.
+Il master seleziona quale degli slave (degli altri dispositivi) risponderà tramite i primi 7 o 10 bit che invia. 
+(L'indirizzo serve a selezionare il dispositivo)
+Dopo l'indirizzo il master trasferisce un bit di direzione che regolamenta la lettura e la scrittura ( 0 scrittura 1 lettura)
+
+Dopodichè è lo slave a trasmettere i bit successivi (acknowledgment), il master lascia la linea di SDA, se lo slave riconosce la trasmissione allora è lui a guidare a 0 la linea di SDA. Se c'è un 1 la transizione non è stata riconosciuta.
+Dopodichè il master trasmette il data payload.  Dipendentemente dall'applicazione ci può essre un pacchetto o più di uno ma per ogni pacchetto lo slave deve mandare un nuovo acknowledge bit.
+
+Una volta terminato il trasferimento vero e proprio lo slave segnala che il pacchetto è stato ricevuto tramite un bit di acknowlagement che è 0. ( Nel caso fosse stata una lettura ovviamente sarebbe stato il master a mandare l’acknowlagment).
+
+Alla fine del trasferimento, come accadeva nel protocollo UART, si ha uno stop bit:
+- Prima il segnale SDA viene portato a 0
+- SCL viene rilasciato (va ad 1)
+- Infine SDA viene rilasciato (va ad 1)
+
+(Le operazioni di lettura funzionano in modo analogo ma i trasferimenti di dati e gli ack sono invertiti)
+
+Una caratteristica particolare è che lo slave può chiedere più tempo per processare un bit facendo clock stretching, guidando il clock a zero
+
+(Il principale vantaggio dell’interfaccia I2C: Posso collegare tante periferiche al MCU.
+Il principale svantaggio dell’interfaccia I2C: Scarsa velocità dovuta alla presenza dei resistori di pull-up)
+
+
+SPI
+
+La caratteristica fondamentale di questo protocollo rispetto all’I2C è la velocità.
+- Questo protocollo è stato progettato per distanza molto piccole, dunque per essere implementato su PCB.
+- A differenza dell’I2C, ha dei driver di tipo push-pull (dunque simile a quelli presenti nei 
+GPIO)
+- Può avere un singolo master ma più slave.
+- La comunicazione è di tipo full duplex, quindi più veloce dell’I2C. E’ possibile avere il master che trasmette dati allo slave ed in parallelo lo slave che trasmette dati al master.
+- La polarità(fronti di scrittura e lettura) e la fase del clock dipendono dalla specifica applicazione
+L'spi è definito in maniera incompleta, sappiamo com'è fatto ma non è specificato in maniera precisa.
+
+Abbiamo due linee dati e due linee di controllo:
+MISO: MASTER IN SLAVE OUT DATA
+MOSI: MASTER OUT SLAVE IN DATA
+SCK: CLOCK
+CSN: CHIP SELECT( DI SOLITO CI METTIAMO LA N PERCHE' UN SEGNALE ATTIVO BASSO)
+
+All'interno delle periferiche SPI sono presenti delle memorie FIFO, con trasferimento full duplex:
+Il trasferimento avviene attraverso degli shifter register (buffer), dove il master spinge il contenuto della fifo out verso lo slave tramite MOSI, lo slave trasmette il contenuto della Fifo out all'interno del master tramite MISO
+
+
+Sono presenti 4 modalità di funzionamento, quando configuriamo l'SPI configuriamo i due bit di polarità e di fase CPOL e CPHA. La fase determina il fronte in cui il MOSI è switchato e quello in cui il MISO è campionato, la polarità determina il valore iniziale del segnale di clock dell'SPI.
+
+Se CPOL=0=CPHA lo slave campiona sul fronte positivo del clock e il master sul fronte negativo
+
+Se CPOL=0 e CPHA=1 cambiano i fronti su cui master e slave campionano.
+
+Quando cambiamo la polarità CPOL=1 e CPHA=0 non sposto i fronti su cui vado a campionare ma inverto il fronte su cui sto campionando
+
+Se spostiamo la configurazione CPOL=CPHA=1 ci spostiamo ancora di mezzo ciclo a destra.
+
+Un classico motivo per cui un dispositivo SPI non funziona potrebbe essere perchè la modalità non è esattamente specificata
+
+Mentre in I2C abbiamo un protocollo complesso qui non è specificato cosa c'è nei bit. Ciascun dispositivo avrà il proprio protocollo costruito sull'SPI.
+
+PUNTO A PUNTO -> SPI è semplice ed efficiente
+
+PER SLAVE MULTIPLI, OGNI SLAVE NECESSITA UN SLAVE SELECT SIGNAL SEPARATO
+L'SPI RICHIEDE PIU' SFORZO E PIU' HW DI I2C
+
+
+JTAG
+
+Protocollo che ci permette di programmare i dispositivi. Utilizza un protocollo seriale che ha delle somiglianze abbastanza forti con l'SPI.
+
+E' un protocollo sviluppato con uno scopo ben preciso, quello di abilitare le interfacce di debug e testing di circuiti integrati. Funziona tramite il boundary scan, si immagina che tutti i circuiti integrati abbiano una logica di core e selezionino una parte di logica periferica (boundary) immaginabile come una serie di FF che è connessa in una configurazione di shift register. Abbiamo un lunghissimo shift register che contiene parte dello stato del dispositivo. Quando siamo in test attiviamo connessioni in catena su tutti i registri. Il protocollo JTAG è pensato per trasmettere serialmente i dati all'interno di questi registri facendoli scorrere un FF dopo l'altro. Quindi si può inserire un dato e all'uscita della catena vedere qual è il contenuto di questi FF nel momento in cui siamo passati dalla modalità funzionale a quella di test. 
+I dispositivi JTAG sono connessi tutti in cascata (daisy chain). Possiamo non solo prelevare informazione ma anche produrne di nuova. Abbiamo segnali simili all'SPI
+CLOCK
+TDI == MOSI
+TDO == MISO
+TMS == Serve per comunicare con una macchina a stati seriale che rende la comunicazione del JTAG più ricca.
+TRST== Serve a resettare lo stato del boundary scan
+
+Tramite il TMS si naviga tra gli stati della macchina a stati nel JTAG TAP CONTROLLER
+
+LOW POWER MODES
+
+POTENZA DI PICCO (INVILUPPO DI POTENZA)-> metrica importante per la progettazione del power delivery, misurata in W ma molto spesso anche in A quando il voltaggio è noto ( P=VxI)
+
+POTENZA MEDIA (MISURATA RISPETTO UN CERTO TASK COMPIUTO DAL DISPOSITIVO)-> misura non istantanea 1/T* integrale di p(t) su [0,T). E' una misura integrale quindi sempre dipendente dall'intervallo di tempo e da quello che facciamo nell'intervallo di tempo. E' fondamentale perchè correlata al dimensionamento di una batteria in un microcontrollore. 
+
+La potenza non è la stessa cosa dell'energia. Stessa cosa vale per corrente e potenza. Se troviamo una dimensione di una batteria in un mAh è corrente*tempo, è una carica elettrica e di conseguenza come tale va trattata (1 h=3600).
+
+
+DOVE SPENDIAMO ENERGIA IN UN MCU?
+Bisogna capire da dove arriva il consumo di potenza nel microcontrollore.
+Consumiamo potenza mediante tre meccanismi diversi:
+1)POTENZA DINAMICA
+2)POTENZA CORTOCIRCUITO
+3)POTENZA DI PERDITA(LEAKAGE)
+
+
+1) Sostanzialmente la potenza che vogliamo consumare quindi correlata al comportamento desiderato di un circuito. Se noi consideriamo un invertitore CMOS che ne ha a carico un altro( circuito più semplice da immaginare), ci permette di fare delle assunzioni valide per ogni CMOS. 
+Qualunque CMOS può essere visto come PU PD e un C a carico(inverter). Consideriamo che l'input sia variabile una volta per ciclo, essendo degli invertitori X' sarà l'opposto e x'' sarà l'opposto di nuovo. Diamo un nome alla capacità di ingresso I2.
+Quando facciamo una trasizione, ogni volta che facciamo transizione verso l'alto di x' questo significa che dentro il nostro invertitore la rete di PU si attiva mentre PD è morta, quindi carichiamo la capacità avendo un circuito RC. Dal punto di vista energetico trasferiamo carica dentro la capacità e quindi assorbiamo da VDD una quantità di energia pari alla carica immessa dentro al condensatore*VDD. dove la carica Qc= C*VDD. dunque E= C*VDD^2.
+La metà la si dissipa nella R equivalente del PU, l'altra metà viene immagazzinata all'interno del C. Quando abbiamo una transizione inversa abbiamo il processo opposto per cui la carica che era immagazzinata si scarica a massa e l'energia si dissipa all'interno della R equivalente della PD.
+
+Se f è la frequenza del clock, la Pdin= 0.5*f*C*VDD^2. Siccome una 0.5 è il rate a cui abbiamo delle transizioni e una su due estraiamo dall'alimentazione, avremo 0.5. Questo lo chiamiamo fattore di attività
+
+AVREMO QUINDI A*C*V^2*f
+CON A= fattore di attività, la media delle probabilità di switchare da 0 a 1
+f= frequenza del clock
+V= VDD
+C= Capacità vista agli output dei gate
+
+Per ridurre la potenza dinamica si potrebbe abbassare il voltaggio e la frequenza, ottenendo un effetto quadratico.
+Possiamo ridurre l'attività, quindi spegnere moduli non utilizzati.
+Abbassare la capacità, quindi fare un chip più piccolo
+
+
+2)Dovuta al fatto che l'invertitore CMOS ha solo uno dei due transistor accesi alla volta. Esistono istanti di tempo nei quali entrambi sono soprasoglia per un breve periodo. Quindi c'è un cammino conduttivo diretto tra alimentazione e ground a bassa resistenza. Si ha un consumo significativo ma per un transitorio molto piccolo. A*V*I*f
+
+3)La potenza di perdita è quella più insidiosa perchè dovuta alla conduzione quando i transistor sono nominalmente spenti. Diventa molto rilevante quando il transistor viene operato sottosoglia. Andiamo a vedere che la differenza tra corrente on e off diventa molto piccola. Ha una forte dipendenza dalla temperatura e essendo dovuta al fatto che non siamo molto bravi a spegnere i transistor è dovuta anche alla tensione di soglia degli stessi che scegliamo.
+
+
+COME OTTENERE NELLA PRATICA BASSA POTENZA
+
+Minimizziamo la potenza dinamica sia perchè è la più attuabile, sia perchè i MCU non sono sviluppati a fortissima integrazione e le tecnologie vecchie soffrono molto di leakage.
+Per ridurla la prima tecnica è agire sulla frequenza e sul fattore di attività.
+Possiamo effettuare il frequency scaling, riducendo la frequenza delle periferiche che richiedono basse velocità.
+Per salvare la potenza dinamica possiamo anche attuare il clock gating, quindi fermare il clock in sezioni di inutilizzo tramite celle chiamate di clock gating le quali fondamentalmente mettono il clock in AND con un segnale di EN. E' utilizzato in maniera automatica quando entriamo in alcuni stati come lo stato di sleep.
+L'ultima tecnica che è possibile utilizzare è avere più di un dominio di clock. Quindi avere clock diversi per diverse parti del circuito.
+
+Oltre che sulla frequenza possiamo agire sulla Tensione V.
+Possiamo avere  multipli domini di tensione, o fare lo scaling del voltaggio, solitamente questa ultima operazione viene fatta insieme alla frequenza. 
+
+
+Per ridurre invece il leakage e il cortocircuito fondamentalmente possiamo agire solamente sulla tensione di alimentazione, in quanto la potenza di perdita dipende da caratteristiche fisiche ed elettriche sulle quali abbiamo un controllo molto limitato durante l'esecuzione.
+
+Infine per ridurre tutte le potenze adottiamo il power gating, stacchiamo fisicamente i nostri dipositivi dalla tensione di alimentazione -> tecniche di power gating. Tramite questa tecnica tutte le memorie volatili perdono il contenuto.
+
+Quando andiamo ad agire tramite scaling o power gating abbiamo il problema della ritenutadi dato, in quanto memorie e registri potrebbero perdere dati se VDD risulta troppo ridotta. Oltre alla ritenuta del dato, andiamo a toccare parti che non hanno tempi di WakeUp istantanee. 
+
+Tipicamente i dispositivi low power hanno vari stati a cui corrisponde un certo consumo di energia. Essenzialmente abbiamo lo stato di: ACTIVE MODE oppure di INACTIVE MODE.
+
+
+Sulla base di questo possiamo distinguere alcune fasi:
+- Fase OFF, dove il processore non esegue nessuna operazione e anche gran parte del sistema può essere inattivo.
+- Fase di inizializzazione, dove sono inizializzate le periferiche e tutto ciò che va usato per una data applicazione.
+
+
+Il microcontrollore può dover reagire a due pattern diversi: EVENTI ESTERNI ASINCRONI oppure EVENTI PROGRAMMATI E PERIODICI (DUTY CYCLE)
+
+Nel primo si reagisce a sporadici eventi interni o esterni come ad esempio l'interrupt di un sensore, il MCU spende la maggior parte del suo tempo in sleep e viene riattivato a intervalli non regolari.
+
+Altrimenti nel secondo un certo task viene performato ogni T millisecondi
+
+
+STRUTTURA DEI CLOCK NELL'STM32F401
+
+Abbiamo un cortex M4 collegato tramite diverse interconnect AHB a una memoria SRAM, a due DMA, e tramite una gerarchia di bus periferici a interfacce I2C/UART/ADC/TIMER. Inoltre nel dispositivo sono presenti alcuni registri per le modalità a basso consumo.
+
+RESET CLOCK CONTROL -> servono a configurare la frequenza e come sono prodotti i vari clock relativi al sistema. Ci sono 2 PLL che ci permettono di generare i clock.
+
+Abbiamo poi dei generatori di clock a frequenza più bassa che vengono utilizzati per dei registri RTC che contengono tutta la funzionalità che è attiva in tutti gli stati del microcontrollore. Contengono l'informazione che viene mantenuta sempre anche quando tutto il resto viene spento, perchè abbiamo bisogno di alcune minime informazioni da cui ripartire.
+
+L'ultimo blocco importante per noi è il Voltage Regulator che produce l'alimentazione interna a partire dall'alimentazione esterna.
+
+L'architettura è divisa in diversi domini di clock separati:
+1)HCLOCK ha 84MHz utilizzato dal core dalla memoria e dall'interconnect AHB. Però quando ci muoviamo verso un altro bus più semplice passiamo da un dominio di clock ad un altro
+2) Le periferiche sono connesse a due domini di clock separati a frequenza più bassa. 
+APB1CLK E APB2CLK
+3) Poi abbiamo il dominio del blocco real time RTCCLK, a frequenza mille volte inferiore al resto del chip, per mantenere informazioni altrimenti perdute in modalità a basso consumo e per contare il tempo in maniera più oggettiva rispetto al tempo contenuto nei timer. Il blocco RTC può tener conto del tempo utilizzando una granularità molto meno fine contando intervalli molto più lunghi e dopo un certo periodo di tempo può svegliare il microcontrollore riattivando tutto ciò che era stato disattivato.
+4) Abbiamo un clock di INDEPENDENT WATCHDOG usato per l'appunto per il watchdog, controlla che non ci siano fault o accessi non dovuti al microcontrollore e nel caso prende azioni per portarlo in uno stato in cui il MCU può rispondere in maniera adeguata
+
+
+Tutti questi domini del clock fanno parte dell'albero di clock.
+Abbiamo diverse sorgenti di clock (5) che possono essere usate per generare alcuni clock interni che si specializzano tramite MUX o DEMUX per andare verso alcuni utilizzi o altri.
+
+Le sorgenti a disposizione sono:
+PLL: PHASE LOCKED LOOP unico oscillatore che può generare clock ad alta frequenza, che però ha bisogno di un clock più lento come imput generabile da uno dei due oscillatori HSI e HSE
+HSI: oscilla sempre a 16 MHZ, più economico e meno preciso a causa della mancanza del quarzo
+HSE: oscillatore esterno 4-26 MHZ
+Abbiamo poi sorgenti a velocità ridotta:
+LSI: usata per il watchdog
+LSE:32 KHZ al quarzo
+
+Non soltanto il nostro microcontrollore ha una abbondanza di domini di clock ma ha anche una discreta capacità di essere messo in domini di isolamento con una granularità abbastanza fine.
+Abbiamo una Vcore=1.2V sottodominio del dominio della tensione di alimentazione, cioè quella che si vedrebbe ai morsetti di 3.3V. Il dominio di VDD prevede alcuni blocchi che si occupano del power management e del reset. In particolare il blocco più importante è il Voltage Regulator che genera 1.2V partendo da 3.3V. Se il MCU consuma più della specifica del suo Voltage Regulator l'efficienza cala e consuma paradossalmente di più.
+
+Separato c'è un altro dominio a 3.3V che serve ad alimentare la circuiteria analogica (VDDA). Il motivo per cui si usa un dominio separato ha a che vedere con gli effetti transienti.
+
+
+C'è un terzo dominio a 3.3V Vbat(teria) utilizzato per alimentare unicamente il RTC e il cristallo a 32KHZ che serve a mantenere le poche informazioni necessarie.
+
+Possiamo quindi modificare la potenza consumata dal dispositivo di 5 ordini di grandezza.
+
+
+MODALITA' OPERATIVE: RUN
+
+In run tutti i dispositivi sono attivi, siamo a 84 MHZ. Abbiamo un reset/clock control, cioè un banco di registri dove andiamo a attivare e disattivare domini di clock. Grazie alla disattivazione di domini di clock c'è un margine di guadagno di quasi il 50%
+
+Noi nel nostro utilizzo tipico il MCU non lo usiamo quasi mai in maniera continuativa ma lo usiamo in modo tale da rispondere ad eventi in maniera asincrona oppure in maniera regolare. Questi due comportamenti ci dicono che in moltissimi casi possiamo migliorare le performance sfruttando il fatto che il mcu per molto tempo deve semplicemente aspettare. Come facciamo ad aspettare e a reagire in maniera rapida a eventi che giungono dall'esterno o interno?
+
+Lo facciamo tramite il POLLING o l'INTERRUPT.
+
+POLLING-> Si usa il software per controllare quando arriva un evento. Si mantiene il core attivo all'interno di un loop controllando frequentemente l'arrivo di un evento. E' inefficiente, non scalabile se bisogna controllare eventi diversi e a volte è lento.
+
+INTERRUPT -> Usiamo una caratteristica sopportata dall'HW. Un interrupt è un meccanismo HW che permette al core del microcontrollore di rilevare un avvenuto evento e rispondere con l'esecuzione di un codice specifico per la risposta a quel determinato evento. E' molto efficiente perchè il codice di risposta viene eseguito soltanto quando necessario, con un tempo di risposta molto breve e facilmente scalabile perchè possiamo usare meccanismi di NVIC che ci permettono di reagire in maniera coordinata e coerente a eventi di priorità diversa che arrivano in diverse sequenze.
+
+
+In un interrupt si sta eseguendo il codice nel main code (background), e la procedura di interrupt si attiva quando avviene un evento imprevisto. Questo evento viene catturato dall'INTERRUPT CONTROLLER che dopo aver categorizzato l'evento genererà un segnale diretto al core che causa una serie di attività di risposta che il core avvia in maniera non programmata, completamente cablata al processore stesso (INTERRUPT SEVICE ROUTINE, include anche le istruzioni di ritorno dall'interrupt una volta eseguito il foreground). Dopodichè si continua con l'esecuzione del codice originale o si ritorna in sleep.
+
+
+GESTIONE DELL'INTERRUPT DALLA CPU
+
+L'istruzione in corso viene tipicamente portanta a termine, tutte le altre vengono flashate dalla pipeline (se non si parte dallo sleep). La prima cosa che l'interrupt deve fare è simile ad una chiamata a procedura, prende il contesto corrente e lo pusha sullo stack in modo che venga salvato, si scrivono di conseguenza i contenuti di alcuni registri tra cui PSR(Contiene lo stato interno del processore a quell'istante)/LR/PC.
+Dopodichè si switcha in modalità privilegiata e si carica nel PC l'indirizzo dell'exception handler.
+Dopodichè si carica il LR con l'indirizzo di ritorno, il PSR con il numero dell'eccezione e si eseguono il codice e l'handler dell'eccezione.
+
+IL MECCANISMO DELL'INTERRUPT E' FONDAMENTALE PER CAPIRE LE MODALITA' A BASSO CONSUMO
+
+LO SLEEP è una modalità in cui il Core viene messo in Clock gating in attesa di un interrupt. Il risveglio avviene in 4 cicli di clock.
+Quando si entra in sleep con una istruzione di WAIT FOR INTERRUPT il core viene fermato, tutti i dati e le informazioni mantenute perchè disattiviamo solo il clock. Noi possiamo scegliere di mantenerne alcune attive configurando un apposito bit all'interno del registro relativo in RCC(reset clock control).
+Esistono anche istruzioni leggermente diverse come il WAIT FOR EVENT dove aspettiamo l'arrivo dell'evento dove anzichè entrare nell'IRS riaccendiamo il processore e eseguiamo del codice.
+Si può configurare il microcontrollore in modo che una volta uscito dall'ultima interrupt rientri in sleep. Il residuo della potenza rimasta sono dovuti all'oscillatore.
+
+STOP (aka deep sleep): quando vogliamo risparmiare di più e quindi disattiviamo anche le sorgenti del clock. In questo stato disattiviamo in maniera più aggressiva tutti i clock e oscillatori, inoltre si mette il voltage regulator in uno stato LOW POWER. Le periferiche non possono avere il proprio valore aggiornato a causa della tensione abbassata anche se alzassimo il clock. RTC E WATCHDOG vengono mantenuti di default. 
+Anche qui si entra con una WFI ma si deve impostare un apposito register con un apposito bit. Per svegliarsi dallo STOP ci si sveglia da un interrupt provenienti da linee GPIO ESTERNE (EXTI). Una volta uscito dallo stop, la configurazione del clock ritorna al suo reset state. La potenza consumata in questo stato è quella di leakage.
+
+STANDBY: modalità ancora più aggressiva dove si fa tutto quello fatto in stop ma spegnendo completamente il voltage regulator mettendolo in power gating. Tutto il core è quindi distaccato dall'alimentazione. Per risvegliarci da questo stato usiamo un interrupt dall'esterno o tramite l'RTC. Il wakeup da questa condizione è molto lento perchè dobbiamo riaccendere tutti i componenti, e inoltre tranne il power gating abbiamo perso completamente lo stato se non salvato in una memoria non volatile.
+
+
+
+
